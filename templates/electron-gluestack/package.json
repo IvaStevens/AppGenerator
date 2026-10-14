@@ -1,0 +1,30 @@
+{
+  "name": "appgen-template",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "scripts": {
+    "build": "vite build",
+    "start": "npm run build && electron .",
+    "smoke": "npm run build && SMOKE_TEST=1 electron ."
+  },
+  "dependencies": {
+    "@gluestack-style/react": "1.0.57",
+    "@gluestack-ui/config": "1.1.20",
+    "@gluestack-ui/themed": "1.1.73",
+    "buffer": "6.0.3",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "react-native-svg": "15.14.0",
+    "react-native-web": "0.21.4"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "5.2.0",
+    "electron": "44.7.1",
+    "vite": "7.3.7"
+  }
+}

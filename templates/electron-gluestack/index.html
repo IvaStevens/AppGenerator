@@ -1,0 +1,22 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      Deliberately no title element in this document. A hardcoded one would
+      leak the template's own identity into every generated app (an early
+      draft of this file shipped exactly that leak, and it was removed).
+      The window title instead comes from app.getName() in
+      electron/main.cjs, which reads the generated app's own package.json
+      "name" field - zero text substitution required.
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; script-src 'self';"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/renderer.jsx"></script>
+  </body>
+</html>

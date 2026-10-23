@@ -1,8 +1,13 @@
 // Orchestrator. Order of operations is itself the security property:
 //
-//   Node floor check -> parse args -> validate name (pure, zero I/O) ->
-//   resolve + containment -> atomic acquire -> install signal handlers ->
-//   scaffold -> install phase 1 -> install phase 2 -> print next steps.
+//   Node floor check -> parse args -> resolve target -> validate name
+//   (pure, zero I/O) -> derive + re-validate Android identifiers ->
+//   containment -> atomic acquire -> install signal handlers -> scaffold
+//   -> install phase 1 -> install phase 2 -> print next steps.
+//
+// Everything that can exit 2 (usage error) happens BEFORE acquireTargetDir,
+// so an unknown --target, an invalid name, or an unrescuable derived
+// identifier writes nothing to disk.
 //
 // Every typed error (errors.js) is mapped to its fixed exit code and a
 // message on stderr in exactly one place: the catch block at the bottom of
@@ -17,7 +22,15 @@ import { scaffold } from "./scaffold.js";
 import { runInstall } from "./install.js";
 import { cleanup } from "./cleanup.js";
 import { AppGeneratorError, usageError } from "./errors.js";
+import { resolveTarget, listTargets, DEFAULT_TARGET_ID } from "./targets.js";
 
+// The single global Node floor across every target (AC13): currently the
+// Electron template's own requirement. react-native@0.83.10 (used by the
+// react-native-android target) only needs Node >=20.19.4, so it does not
+// raise this floor; if a future target needs more than 22.12.0, this
+// constant - and both templates' READMEs - must be raised together, and
+// the justification below updated to name the new binding constraint. It
+// must never be lowered.
 export const MIN_NODE_VERSION = [22, 12, 0];
 
 /**
@@ -39,11 +52,25 @@ export function satisfiesNodeFloor(versionString, floor = MIN_NODE_VERSION) {
   return true; // exactly equal
 }
 
-const HELP_TEXT = `Usage: appgenerator <app-name> [--no-install]
+function renderTargetList() {
+  return listTargets()
+    .map((t) => `  ${t.id}${t.id === DEFAULT_TARGET_ID ? " (default)" : ""}\n      ${t.summary}`)
+    .join("\n");
+}
 
-Generates a new Electron app preloaded with gluestack-ui into ./<app-name>.
+// Built from the target registry (src/targets.js), not hand-maintained, so
+// a target that exists but is not in this list is structurally impossible
+// (AC11).
+const HELP_TEXT = `Usage: appgenerator <app-name> [--target <id>] [--no-install]
+
+Generates a new app into ./<app-name>.
+
+Targets:
+${renderTargetList()}
 
 Options:
+  --target <id>  Which target to generate. Defaults to "${DEFAULT_TARGET_ID}"
+                 (never required - omitting it keeps today's behaviour).
   --no-install   Scaffold files only; skip npm ci and the Electron binary
                  front-load. The generated app's first "npm start" will
                  then need a manual "npm ci" and may need to download the
@@ -69,7 +96,9 @@ export async function run(argv, { cwd }) {
   if (!satisfiesNodeFloor(process.version)) {
     throw usageError(
       `appgenerator requires Node ${MIN_NODE_VERSION.join(".")} or newer ` +
-        `(this is the Electron template's own floor); found ${process.version}.`,
+        `(the max of both targets' floors - the Electron template's own ` +
+        `>=22.12.0, which is currently stricter than react-native-android's ` +
+        `>=20.19.4); found ${process.version}.`,
     );
   }
 
@@ -81,6 +110,7 @@ export async function run(argv, { cwd }) {
       options: {
         "no-install": { type: "boolean", default: false },
         help: { type: "boolean", default: false },
+        target: { type: "string", default: DEFAULT_TARGET_ID },
       },
     });
   } catch (err) {
@@ -100,10 +130,23 @@ export async function run(argv, { cwd }) {
     throw usageError(`Unexpected extra argument(s): ${rest.join(", ")}`);
   }
 
+  // Resolved before name validation: a typo'd --target is a usage error
+  // regardless of whether the app name happens to be valid, and resolving
+  // it first keeps the order (and therefore the "write nothing on a usage
+  // error" guarantee) the same shape as every other check below.
+  const targetDef = resolveTarget(parsed.values.target);
+
   const nameCheck = validateAppName(appName);
   if (!nameCheck.ok) {
     throw usageError(nameCheck.reason);
   }
+
+  // Derive this target's identifiers (e.g. the Android applicationId) and
+  // re-validate them BEFORE acquiring the target directory, so a name
+  // sanitisation genuinely cannot rescue (see src/android-identifier.js)
+  // is a usage error (exit 2) with zero filesystem writes, never a
+  // scaffold failure after the fact.
+  const derived = targetDef.derive ? targetDef.derive(appName) : null;
 
   const install = !parsed.values["no-install"];
 
@@ -144,7 +187,7 @@ export async function run(argv, { cwd }) {
   process.on("SIGTERM", onSignal);
 
   try {
-    scaffold(acquisition.target, { appName });
+    scaffold(acquisition.target, { appName, targetId: targetDef.id, derived });
 
     // A signal can land between scaffold() returning and install starting
     // (JS is single-threaded, so it cannot land mid-scaffold itself).
@@ -170,10 +213,7 @@ export async function run(argv, { cwd }) {
     }
 
     process.stdout.write(
-      `\nCreated ${appName} at ${acquisition.target}\n\n` +
-        `Next steps:\n` +
-        `  cd ${appName}\n` +
-        (install ? `  npm start\n` : `  npm ci\n  npm start\n`),
+      targetDef.nextSteps(appName, acquisition.target, { install }),
     );
   } catch (err) {
     if (interrupted) {

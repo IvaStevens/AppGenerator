@@ -1,32 +1,49 @@
-// Copies templates/electron-gluestack into the target directory, then
-// rewrites the app name via exactly two JSON parse/set/stringify
-// operations. No text substitution anywhere else - everything that needs
-// the app name at runtime reads it dynamically (app.getName()).
+// Copies a target's template into the target directory, then runs that
+// target's name bindings (src/name-bindings.js) - exactly two JSON
+// parse/set/stringify rewrites for electron-gluestack (unchanged, AC12),
+// the full §5.3 binding table for react-native-android (AC6). Per-target
+// configuration (template root, cpSync skip list, dotfile renames,
+// bindings) lives in the registry (src/targets.js), never as an if/else
+// on target id here - this module stays generic.
+//
+// TEMPLATE_ROOT and the scaffold(target, { appName }) signature are kept
+// exactly as they were before this ticket, because existing tests import
+// and call them that way; targetId and derived are new, optional, and
+// default to the electron-gluestack target with no derived identifiers.
 
-import { cpSync, readFileSync, writeFileSync, renameSync, existsSync } from "node:fs";
+import { cpSync, renameSync, existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { scaffoldError } from "./errors.js";
+import { scaffoldError, AppGeneratorError } from "./errors.js";
+import { resolveTarget, DEFAULT_TARGET_ID } from "./targets.js";
+import { applyBindings } from "./name-bindings.js";
+import { rewriteJsonName } from "./json-rewrite.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const TEMPLATE_ROOT = path.join(__dirname, "..", "templates", "electron-gluestack");
 
-const SKIP_LIST = new Set(["node_modules", "dist"]);
+// Re-exported so name-bindings.js's "json" binding operation and the
+// electron-gluestack target's two inline rewrites are provably the SAME
+// function, not two implementations that happen to agree today.
+export { rewriteJsonName };
 
 /**
  * @param {string} target - absolute path to the already-acquired, empty target directory
- * @param {{ appName: string, templateRoot?: string }} opts
+ * @param {{ appName: string, targetId?: string, derived?: object }} opts
  */
-export function scaffold(target, { appName, templateRoot = TEMPLATE_ROOT }) {
+export function scaffold(target, { appName, targetId = DEFAULT_TARGET_ID, derived = null }) {
+  const targetDef = resolveTarget(targetId);
+  const skipSet = new Set(targetDef.skip);
+
   try {
-    cpSync(templateRoot, target, {
+    cpSync(targetDef.templateDir, target, {
       recursive: true,
       force: false,
       errorOnExist: true,
       dereference: false,
       filter: (src) => {
         const base = path.basename(src);
-        return !SKIP_LIST.has(base);
+        return !skipSet.has(base);
       },
     });
   } catch (err) {
@@ -34,34 +51,25 @@ export function scaffold(target, { appName, templateRoot = TEMPLATE_ROOT }) {
   }
 
   try {
-    // _gitignore -> .gitignore (CRA convention: underscore-prefixed so
-    // packaging tools cannot rename or swallow it before it is copied).
-    const underscoreGitignore = path.join(target, "_gitignore");
-    const dotGitignore = path.join(target, ".gitignore");
-    if (existsSync(underscoreGitignore)) {
-      renameSync(underscoreGitignore, dotGitignore);
+    // Underscore -> dot dotfile renames (generalises the electron target's
+    // original single _gitignore -> .gitignore rename, existsSync-guarded
+    // exactly as before so a template that lacks one of these is a no-op,
+    // not a failure).
+    for (const dotfile of targetDef.dotfiles) {
+      const from = path.join(target, dotfile);
+      const to = path.join(target, `.${dotfile.slice(1)}`);
+      if (existsSync(from)) {
+        renameSync(from, to);
+      }
     }
 
-    rewriteJsonName(path.join(target, "package.json"), appName, (json) => {
-      json.name = appName;
-    });
-
-    rewriteJsonName(path.join(target, "package-lock.json"), appName, (json) => {
-      json.name = appName;
-      if (json.packages && json.packages[""]) {
-        json.packages[""].name = appName;
-      }
-    });
+    applyBindings(target, targetDef.bindings, { appName, derived });
   } catch (err) {
+    if (err instanceof AppGeneratorError) {
+      // Already a typed, correctly-coded error from name-bindings.js
+      // (scaffoldError, exit 4) - propagate as-is rather than re-wrapping.
+      throw err;
+    }
     throw scaffoldError(`Failed to rewrite generated app manifest: ${err.message}`);
   }
-}
-
-function rewriteJsonName(filePath, appName, mutate) {
-  const raw = readFileSync(filePath, "utf8");
-  const json = JSON.parse(raw);
-  mutate(json);
-  // 2-space indent AND a trailing newline - dropping the newline was a
-  // verified diff against a real npm ci-generated lockfile.
-  writeFileSync(filePath, `${JSON.stringify(json, null, 2)}\n`, "utf8");
 }

@@ -2,3 +2,13 @@ node_modules/
 dist/
 templates/*/node_modules/
 templates/*/dist/
+
+# React Native / Android Gradle build output - NEVER a bare build/, *.jar
+# or *.keystore rule here: that would un-track the committed Gradle
+# wrapper jar and the debug keystore and break every generated build.
+templates/*/android/.gradle/
+templates/*/android/build/
+templates/*/android/app/build/
+templates/*/android/app/.cxx/
+templates/*/android/local.properties
+templates/*/.kotlin/

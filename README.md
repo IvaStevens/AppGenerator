@@ -1,40 +1,55 @@
 # AppGenerator
 
-A `create-react-app`-style generator that scaffolds an independent Electron
-desktop app preloaded with [gluestack-ui](https://gluestack.io/) (a
-temporary stand-in for a future in-house component library). This is the
-Electron-only proof of concept; a React Native target is planned later and
-will sit alongside this template without touching generator core.
+A `create-react-app`-style generator with two targets: an independent
+Electron desktop app preloaded with [gluestack-ui](https://gluestack.io/)
+(a temporary stand-in for a future in-house component library, and the
+default target), and a React Native app with a working Android (Gradle)
+project. Both are proofs of concept.
 
 ## Requirements
 
 - **Linux only** for this proof of concept (macOS/Windows are unverified:
-  `npm` is `npm.cmd` on Windows and the generated app's `smoke` script uses
-  POSIX env syntax).
-- **Node `>=22.12.0`**, exactly. This floor comes from the generated app's
-  own dependencies, not a vague "LTS": `electron@44.7.1` declares
-  `engines.node: ">=22.12.0"` and `vite@7.3.7` / `@vitejs/plugin-react@5.2.0`
-  declare `engines.node: "^20.19.0 || >=22.12.0"`. Electron is the binding
-  constraint - running the generator on an older Node would let it generate
-  an app it cannot build. The generator checks this itself at startup and
-  exits with code `2` on an older Node, because `engines` alone only warns.
+  `npm` is `npm.cmd` on Windows, the Electron template's `smoke` script
+  uses POSIX env syntax, and the documented Android build command assumes
+  the POSIX `gradlew` wrapper, not `gradlew.bat`).
+- **Node `>=22.12.0`**, exactly - the maximum of every target's own floor,
+  not a vague "LTS". `electron@44.7.1` declares `engines.node:
+  ">=22.12.0"` and `vite@7.3.7` / `@vitejs/plugin-react@5.2.0` declare
+  `engines.node: "^20.19.0 || >=22.12.0"` (the electron-gluestack target);
+  `react-native@0.83.10` declares `engines.node: ">=20.19.4"` (the
+  react-native-android target). Electron is currently the binding
+  constraint for the whole generator - running it on an older Node would
+  let it generate an app it cannot build. The generator checks this itself
+  at startup and exits with code `2` on an older Node, because `engines`
+  alone only warns. If a future target needs a higher floor than
+  `22.12.0`, this number is raised (never lowered) in `package.json`,
+  `src/cli.js`, and every affected template's README, naming the new
+  binding constraint.
 
 ## Usage
 
 ```
-node bin/appgenerator.js <app-name> [--no-install]
+node bin/appgenerator.js <app-name> [--target <id>] [--no-install]
 ```
 
 - `<app-name>` must be a valid npm package name with no path separators,
   no `..`, no absolute paths, and no leading `.`/`_` (see
   `src/validate-app-name.js` for the exact rule). Rejected names write
-  nothing to the filesystem.
-- By default the generator runs the full install (so `npm start` works
-  immediately afterward with no manual steps). Pass `--no-install` to
-  scaffold files only; the README written into the generated app then
-  documents the manual `npm ci` step, and the first `npm start` after that
-  may additionally need to download the Electron binary (see "Electron
-  binary download" below).
+  nothing to the filesystem. The same rule is used for both targets -
+  `validate-app-name.js` is never tightened per target - so for the
+  react-native-android target the generator additionally *derives* a
+  legal Android identifier from the name (see "React Native Android
+  target" below) rather than rejecting more names.
+- `--target <id>` selects which target to generate. It is **never
+  required**: omitting it keeps today's behaviour exactly (generates
+  `electron-gluestack`). Run `--help` for the full, registry-generated
+  list of target ids.
+- By default the generator runs the full install (so the generated app's
+  first start command works immediately afterward with no manual `npm`
+  steps). Pass `--no-install` to scaffold files only; the README written
+  into the generated app then documents the manual `npm ci` step. For
+  electron-gluestack, the first start after that may additionally need to
+  download the Electron binary (see "Electron binary download" below).
 - Generating into a path that does not exist creates it. Generating into
   an existing, completely empty directory (or one containing only benign
   dotfiles - `.git`, `.DS_Store`, `Thumbs.db`) is accepted. Anything else,
@@ -45,8 +60,10 @@ node bin/appgenerator.js <app-name> [--no-install]
   `.gitignore`, and a pre-existing one would otherwise be silently
   clobbered.)
 
-The generated app's start command is `npm start` (run from inside the new
-app directory).
+The electron-gluestack app's start command is `npm start` (run from inside
+the new app directory). The react-native-android app's commands are
+`npm start` (Metro) plus `npm run android` or the Gradle build directly -
+see "React Native Android target" below.
 
 ## Exit codes
 
@@ -106,20 +123,43 @@ missing requirement. Manual fallback on a headless host:
 xvfb-run -a npm run test:e2e
 ```
 
+```
+npm run test:e2e:android
+```
+
+Opt-in (`APPGEN_E2E=1`). Generates a real react-native-android app and
+runs its Android debug build - the actual proof of AC8. Needs `java` on
+`PATH` and `ANDROID_HOME` or `ANDROID_SDK_ROOT` set and containing
+`platform-tools`, plus network access for the first build (see "React
+Native Android target" below). If `APPGEN_E2E=1` is set and a prerequisite
+is missing, the test **fails** (it does not silently skip), naming the
+missing prerequisite. Manual fallback, equivalent to what the test runs:
+
+```
+node bin/appgenerator.js myapp --target react-native-android
+cd myapp/android && ./gradlew assembleDebug
+```
+
+`npm run test:e2e` is unaffected by this and keeps pointing only at the
+Electron proof, so it keeps working on a host that has a display and
+nothing else - it does not start requiring a JDK or an Android SDK.
+
 ## Reproducibility and version pinning
 
-The template pins exact versions for Electron, gluestack-ui, and every
-required peer (react-native-web, etc.), and ships a committed
-`package-lock.json` installed with `npm ci` (never `npm install`). This is
-what makes two apps generated weeks apart scaffold identical dependency
-versions - the ticket's whole premise is one shared look and feel, which a
-floating version would defeat. `@gluestack-ui/themed` in particular
-declares floating `latest` transitive dependencies
-(`@legendapp/motion`, `@expo/html-elements`); only the committed lockfile
-pins those.
+Both templates pin exact versions for every direct dependency and ship a
+committed `package-lock.json` installed with `npm ci` (never
+`npm install`). This is what makes two apps generated weeks apart scaffold
+identical dependency versions - the ticket's whole premise is one shared
+look and feel, which a floating version would defeat.
+`templates/*/package-lock.json` is the only real pin in both cases:
+`@gluestack-ui/themed` declares floating `latest` transitive dependencies
+(`@legendapp/motion`, `@expo/html-elements`), and the react-native-android
+template's resolved graph contains 39 floating `*`/`latest` range
+declarations of its own (`@types/node`, Babel/React/React Native peers,
+etc.) that exact pins on the direct dependencies cannot constrain.
 
-**Regenerating the template lockfile** (only needed when deliberately
-bumping a pinned version):
+**Regenerating the electron-gluestack template lockfile** (only needed
+when deliberately bumping a pinned version):
 
 ```
 cd templates/electron-gluestack
@@ -128,9 +168,19 @@ npm install --no-audit --no-fund
 npm run build && npm run smoke   # re-verify before committing
 ```
 
-A test (`test/template-lockfile-sync.test.js`) fails fast if the
-template's declared dependencies and the committed lockfile ever drift
-apart, instead of letting every generation fail at `npm ci`.
+**Regenerating the react-native-android template lockfile:**
+
+```
+cd templates/react-native-android
+rm -rf node_modules package-lock.json
+npm install --no-audit --no-fund
+npm audit   # re-check the advisory count below before committing
+```
+
+A test (`test/template-lockfile-sync.test.js`) fails fast, for every
+target in the registry, if a template's declared dependencies and its
+committed lockfile ever drift apart, instead of letting every generation
+fail at `npm ci`.
 
 ## Electron binary download
 
@@ -150,6 +200,95 @@ silently. Behind a proxy or mirror, the usual Electron environment
 variables are honoured (inherited from your shell, not configured by the
 generator): `ELECTRON_MIRROR`, `electron_config_cache`,
 `ELECTRON_OVERRIDE_DIST_PATH`, `force_no_cache`.
+
+## React Native Android target
+
+`--target react-native-android` generates a bare React Native 0.83.10
+project that already contains a working `android/` Gradle project - not
+one produced later by a separate `prebuild`/`eject` step. The template is
+vendored from `@react-native-community/template@0.83.10` (MIT; see
+`templates/react-native-android/THIRD-PARTY-NOTICE.md`), with its own
+identity renamed so no generated app leaks it, and nothing else added:
+no UI library, so a later layer (such as a future bobuttons-based target)
+starts from a plain template.
+
+### Application id
+
+The generated app's Android namespace / `applicationId` is
+`com.<sanitised-app-name>`, derived from the app name by the single
+function in `src/android-identifier.js` - never a placeholder. Two apps
+generated with different names get different `applicationId`s. The
+sanitisation is deterministic but **not injective**: names that differ
+only in separators collapse to the same identifier (for example `my-app`,
+`my.app` and `my_app` all derive `com.my_app`), and a leading digit is
+always prefixed the same way (so `1app` and a literal app named `a1app`
+also collide). This is a known, documented property, not a bug - combined
+with the shared debug keystore below, two colliding apps cannot be
+installed side by side on the same device.
+
+### Prerequisites for the Android build (not provisioned by the generator)
+
+- JDK 17 or newer (required by Gradle 9.0 and Android Gradle Plugin
+  8.12, both pinned in the template).
+- The Android SDK, with `platform-tools` installed, and `ANDROID_HOME` (or
+  `ANDROID_SDK_ROOT`) pointing at it.
+- The SDK licences accepted (`sdkmanager --licenses`).
+- Network access, for the first build only (see below).
+
+Provisioning this toolchain is explicitly out of scope for the generator -
+it is a documented prerequisite, the same way a display is a documented
+prerequisite for the Electron e2e proof above.
+
+### Building
+
+```
+cd <app-name>/android
+./gradlew assembleDebug
+```
+
+produces `android/app/build/outputs/apk/debug/app-debug.apk` with **zero
+edits** to the generated sources or config. **The first build needs
+network access**: it downloads the Gradle 9.0.0 distribution and the
+Maven artifacts for the Android Gradle Plugin, Kotlin and the React
+Native Android runtime, then compiles native code with the NDK. The
+generator front-loads **none** of that - only the npm/JS dependencies are
+installed at generation time (`npm ci` against the template's committed
+lockfile, exiting 0 with no manual intervention, exactly like
+electron-gluestack). Front-loading Gradle/Maven artifacts would require
+the Android SDK on the *generating* host, which is not a generator
+prerequisite, and is out of scope. See `test/e2e/android-build.test.js`
+and `npm run test:e2e:android` above for the automated proof of this
+build, and its exact manual fallback.
+
+### What does NOT run for this target
+
+The Electron-specific install phase (front-loading the Electron binary)
+does not run for this target: `src/install.js`'s existing
+`existsSync(node_modules/electron/...)` guard degrades gracefully because
+the react-native-android template has no Electron dependency, so `npm ci`
+is already the complete JS install for this target (verified: the only
+package in its resolved graph with an install script is the macOS-only,
+optional `fsevents`).
+
+### Dependency security (react-native-android)
+
+`npm audit` on a freshly generated app reports **7 moderate advisories, 0
+high, 0 critical**, via `@react-native-community/cli-platform-apple` /
+`cli-platform-ios`, which still arrive transitively through
+`@react-native-community/cli` even though the direct
+`cli-platform-ios` dev dependency has been dropped (iOS is out of scope
+for this ticket). `npm audit fix` must not be run against the template -
+it would unpin versions and defeat reproducibility. Re-check this number
+whenever the template lockfile is regenerated.
+
+### Shared debug keystore
+
+Every generated react-native-android app is signed for debug builds with
+the same upstream Android debug keystore
+(`android/app/debug.keystore`, password `android`), not a keystore unique
+to that app. Combined with the applicationId collisions above, two
+colliding apps are indistinguishable to Android's installer. Release
+signing, keystores, and any registry publishing are out of scope.
 
 ## Dependency security (known, accepted)
 
@@ -224,14 +363,37 @@ a long-lived update mechanism.
 ## Layout
 
 ```
-bin/appgenerator.js          executable shim
-src/cli.js                   argv parsing, orchestration, signal handling, exit codes
-src/validate-app-name.js     pure name validation (zero I/O)
-src/target-dir.js            atomic target acquisition (ownership + snapshot)
-src/scaffold.js              template copy + the two JSON name rewrites
-src/install.js               npm ci, then the Electron binary front-load
-src/cleanup.js                the only module that deletes anything
-src/errors.js                 typed errors carrying fixed exit codes
-templates/electron-gluestack/ the Electron + gluestack-ui template
-test/                          node:test suite (node --test, i.e. `npm test`)
+bin/appgenerator.js             executable shim
+src/cli.js                      argv parsing, orchestration, signal handling, exit codes
+src/validate-app-name.js        pure name validation (zero I/O) - same rule for every target
+src/target-dir.js               atomic target acquisition (ownership + snapshot)
+src/targets.js                  the target registry - single source of truth per target
+src/android-identifier.js       derives a legal Android applicationId from any accepted app name
+src/name-bindings.js            allow-listed per-site name-binding executor (json / line / moveDir)
+src/json-rewrite.js             the JSON parse/set/stringify primitive both targets' "json" bindings use
+src/scaffold.js                 template copy + per-target dotfile renames + name bindings
+src/install.js                  npm ci, then the Electron binary front-load (electron-gluestack only)
+src/cleanup.js                   the only module that deletes anything
+src/errors.js                    typed errors carrying fixed exit codes
+templates/electron-gluestack/    the Electron + gluestack-ui template
+templates/react-native-android/  the React Native + Android (Gradle) template
+test/                             node:test suite (node --test, i.e. `npm test`)
+docs/context/                     architect context for each ticket
 ```
+
+## Name binding: a deliberate, allow-listed mechanism
+
+APPGENERATOR-1 established a standing invariant: name binding is exactly
+two JSON parse/set/stringify rewrites, never text substitution anywhere.
+Android/Gradle/Kotlin source-directory renaming is not expressible as a
+JSON rewrite, so this invariant has been **deliberately extended**, not
+quietly broken, by `src/name-bindings.js`. There are exactly three
+operation kinds - `json` (the original rewrite), `line` (one regex
+anchored to one known line in one known file, which must match **exactly
+once** or generation fails with exit `4` naming the file and the anchor),
+and `moveDir` (one directory rename) - and deliberately no fourth
+operation that replaces a token across files. electron-gluestack keeps
+using the original `json`-only code path unchanged. The full rationale,
+the complete react-native-android binding table, and the anti-pattern
+findings this design avoids are recorded in
+`docs/context/APPGENERATOR-3-add-react-native-android-app-generation.md`.

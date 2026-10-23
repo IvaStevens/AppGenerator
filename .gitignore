@@ -12,3 +12,6 @@ templates/*/android/app/build/
 templates/*/android/app/.cxx/
 templates/*/android/local.properties
 templates/*/.kotlin/
+
+# Local architect/study-guide context, not committed
+docs/

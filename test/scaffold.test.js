@@ -3,7 +3,9 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import crypto from "node:crypto";
 import { scaffold, TEMPLATE_ROOT } from "../src/scaffold.js";
+import { listTargets, resolveTarget } from "../src/targets.js";
 
 function mkTmp() {
   return fs.mkdtempSync(path.join(os.tmpdir(), "appgen-scaffold-"));
@@ -115,45 +117,60 @@ test("node_modules and dist are never copied even when present in the template",
   );
 });
 
-test("the template tree contains no symlinks", () => {
-  function walk(dir) {
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name === "node_modules" || entry.name === "dist") continue;
-      const p = path.join(dir, entry.name);
-      const st = fs.lstatSync(p);
-      assert.ok(!st.isSymbolicLink(), `unexpected symlink: ${p}`);
-      if (st.isDirectory()) walk(p);
-    }
-  }
-  walk(TEMPLATE_ROOT);
-});
+// Both whole-template walks below loop over every registered target's
+// template root (AC10/AC12), with identical semantics to the original
+// electron-only assertions. The byte-identity walk hashes raw bytes
+// (SHA-256) rather than comparing utf8 strings, because the
+// react-native-android template contains a jar, a Java keystore and
+// PNGs - reading those as utf8 would corrupt them before comparison.
+for (const { id } of listTargets()) {
+  const templateRoot = resolveTarget(id).templateDir;
+  const skip = new Set(resolveTarget(id).skip);
 
-test("the template directory is byte-identical after a run", (t) => {
-  const cwd = mkTmp();
-  t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
-  const target = path.join(cwd, "app");
-  fs.mkdirSync(target);
-
-  function snapshotTree(dir) {
-    const out = {};
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (entry.name === "node_modules" || entry.name === "dist") continue;
-      const p = path.join(dir, entry.name);
-      if (entry.isDirectory()) {
-        out[entry.name] = snapshotTree(p);
-      } else {
-        out[entry.name] = fs.readFileSync(p, "utf8");
+  test(`[${id}] the template tree contains no symlinks`, () => {
+    function walk(dir) {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (skip.has(entry.name)) continue;
+        const p = path.join(dir, entry.name);
+        const st = fs.lstatSync(p);
+        assert.ok(!st.isSymbolicLink(), `unexpected symlink: ${p}`);
+        if (st.isDirectory()) walk(p);
       }
     }
-    return out;
-  }
+    walk(templateRoot);
+  });
 
-  const before = snapshotTree(TEMPLATE_ROOT);
-  scaffold(target, { appName: "app" });
-  const after = snapshotTree(TEMPLATE_ROOT);
+  test(`[${id}] the template directory is byte-identical after a run`, (t) => {
+    const cwd = mkTmp();
+    t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+    const appName = "app";
+    const target = path.join(cwd, appName);
+    fs.mkdirSync(target);
 
-  assert.deepEqual(after, before);
-});
+    function snapshotTree(dir) {
+      const out = {};
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        if (skip.has(entry.name)) continue;
+        const p = path.join(dir, entry.name);
+        if (entry.isDirectory()) {
+          out[entry.name] = snapshotTree(p);
+        } else {
+          out[entry.name] = crypto.createHash("sha256").update(fs.readFileSync(p)).digest("hex");
+        }
+      }
+      return out;
+    }
+
+    const targetDef = resolveTarget(id);
+    const derived = targetDef.derive ? targetDef.derive(appName) : null;
+
+    const before = snapshotTree(templateRoot);
+    scaffold(target, { appName, targetId: id, derived });
+    const after = snapshotTree(templateRoot);
+
+    assert.deepEqual(after, before);
+  });
+}
 
 test("no generated file outside src/ui imports @gluestack-ui/* or react-native* directly", (t) => {
   const cwd = mkTmp();

@@ -1,7 +1,7 @@
 {
   "name": "appgenerator",
   "version": "0.1.0",
-  "description": "create-react-app-style generator for Electron desktop apps preloaded with gluestack-ui (proof of concept).",
+  "description": "create-react-app-style generator for Electron desktop apps preloaded with gluestack-ui, and for React Native apps with a working Android (Gradle) project (proof of concept).",
   "type": "module",
   "private": true,
   "license": "UNLICENSED",
@@ -13,7 +13,8 @@
   },
   "scripts": {
     "test": "node --test \"test/**/*.test.js\"",
-    "test:e2e": "APPGEN_E2E=1 node --test test/e2e/full-generate.test.js"
+    "test:e2e": "APPGEN_E2E=1 node --test test/e2e/full-generate.test.js",
+    "test:e2e:android": "APPGEN_E2E=1 node --test test/e2e/android-build.test.js"
   },
   "dependencies": {}
 }

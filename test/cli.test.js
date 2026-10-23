@@ -197,3 +197,56 @@ test("--help prints usage and exits 0 without creating anything", (t) => {
   assert.ok(result.stdout.includes("Usage"));
   assert.deepEqual(fs.readdirSync(cwd), []);
 });
+
+// --- AC2/AC11: target selection -------------------------------------------
+
+test("no --target given still generates electron-gluestack (back-compat pin)", (t) => {
+  const cwd = mkTmp();
+  t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+
+  const result = runCli(["notargetapp", "--no-install"], { cwd, env: {} });
+
+  assert.equal(result.status, 0, result.stderr);
+  const target = path.join(cwd, "notargetapp");
+  assert.ok(fs.existsSync(path.join(target, "electron", "main.cjs")));
+  assert.ok(!fs.existsSync(path.join(target, "android")));
+});
+
+test("--target react-native-android --no-install produces a working android/ Gradle project", (t) => {
+  const cwd = mkTmp();
+  t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+
+  const result = runCli(["rnapp", "--target", "react-native-android", "--no-install"], {
+    cwd,
+    env: {},
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  const target = path.join(cwd, "rnapp");
+  assert.ok(fs.existsSync(path.join(target, "android", "settings.gradle")));
+  assert.ok(fs.existsSync(path.join(target, "android", "app", "build.gradle")));
+  assert.ok(!fs.existsSync(path.join(target, "node_modules")));
+});
+
+test("--target bogus exits 2, lists the valid ids, and writes nothing", (t) => {
+  const cwd = mkTmp();
+  t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+
+  const result = runCli(["app", "--target", "bogus"], { cwd, env: {} });
+
+  assert.equal(result.status, 2);
+  assert.ok(result.stderr.includes("electron-gluestack"));
+  assert.ok(result.stderr.includes("react-native-android"));
+  assert.deepEqual(fs.readdirSync(cwd), []);
+});
+
+test("--help lists both target ids", (t) => {
+  const cwd = mkTmp();
+  t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+
+  const result = runCli(["--help"], { cwd, env: {} });
+
+  assert.equal(result.status, 0);
+  assert.ok(result.stdout.includes("electron-gluestack"));
+  assert.ok(result.stdout.includes("react-native-android"));
+});

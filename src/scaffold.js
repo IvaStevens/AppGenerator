@@ -10,6 +10,12 @@
 // exactly as they were before this ticket, because existing tests import
 // and call them that way; targetId and derived are new, optional, and
 // default to the electron-gluestack target with no derived identifiers.
+//
+// APPGENERATOR-2 (pr3): a target may also declare `sharedDirs` - extra
+// source trees copied into a subdirectory of the generated app, so one
+// on-disk tree (e.g. the Android/Gradle scaffolding) can be reused by more
+// than one target instead of being duplicated per template. Still no
+// branch on target id: the list and its sources are registry data.
 
 import { cpSync, renameSync, existsSync } from "node:fs";
 import path from "node:path";
@@ -34,6 +40,10 @@ export { rewriteJsonName };
 export function scaffold(target, { appName, targetId = DEFAULT_TARGET_ID, derived = null }) {
   const targetDef = resolveTarget(targetId);
   const skipSet = new Set(targetDef.skip);
+  const filter = (src) => {
+    const base = path.basename(src);
+    return !skipSet.has(base);
+  };
 
   try {
     cpSync(targetDef.templateDir, target, {
@@ -41,11 +51,26 @@ export function scaffold(target, { appName, targetId = DEFAULT_TARGET_ID, derive
       force: false,
       errorOnExist: true,
       dereference: false,
-      filter: (src) => {
-        const base = path.basename(src);
-        return !skipSet.has(base);
-      },
+      filter,
     });
+
+    // Shared template assets (APPGENERATOR-2, pr3, AC "target shape decided
+    // explicitly" / owner decision D5-Option B): a target may declare a
+    // list of additional source trees to copy into a subdirectory of the
+    // generated app, so a tree (e.g. the Android/Gradle scaffolding) can be
+    // shared on-disk by multiple targets instead of being duplicated into
+    // every template that needs it. Declared on the registry entry
+    // (src/targets.js) - never branched on target id here, same as the
+    // primary template copy above.
+    for (const shared of targetDef.sharedDirs ?? []) {
+      cpSync(shared.src, path.join(target, shared.dest), {
+        recursive: true,
+        force: false,
+        errorOnExist: true,
+        dereference: false,
+        filter,
+      });
+    }
   } catch (err) {
     throw scaffoldError(`Failed to copy template into "${target}": ${err.message}`);
   }

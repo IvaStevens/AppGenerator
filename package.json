@@ -1,7 +1,7 @@
 {
   "name": "appgenerator",
   "version": "0.1.0",
-  "description": "create-react-app-style generator for Electron desktop apps preloaded with gluestack-ui, and for React Native apps with a working Android (Gradle) project (proof of concept).",
+  "description": "create-react-app-style generator for Electron desktop apps preloaded with gluestack-ui, for React Native apps with a working Android (Gradle) project, and for React Native apps built entirely on bobuttons components (proof of concept).",
   "type": "module",
   "private": true,
   "license": "UNLICENSED",

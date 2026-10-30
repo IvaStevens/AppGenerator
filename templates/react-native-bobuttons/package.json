@@ -1,0 +1,51 @@
+{
+  "name": "appgen-bobuttons-template",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "android": "react-native run-android",
+    "lint": "eslint .",
+    "start": "react-native start",
+    "test": "jest --passWithNoTests"
+  },
+  "dependencies": {
+    "bobuttons": "file:vendor/bobuttons-0.1.0.tgz",
+    "react": "19.2.0",
+    "react-native": "0.83.10",
+    "react-native-safe-area-context": "5.10.1"
+  },
+  "devDependencies": {
+    "@babel/core": "7.29.7",
+    "@babel/preset-env": "7.29.7",
+    "@babel/runtime": "7.29.10",
+    "@react-native-community/cli": "20.0.0",
+    "@react-native-community/cli-platform-android": "20.0.0",
+    "@react-native/babel-preset": "0.83.10",
+    "@react-native/eslint-config": "0.83.10",
+    "@react-native/metro-config": "0.83.10",
+    "@react-native/typescript-config": "0.83.10",
+    "@types/jest": "29.5.14",
+    "@types/react": "19.3.0",
+    "@types/react-test-renderer": "19.3.0",
+    "eslint": "8.57.1",
+    "jest": "29.7.0",
+    "prettier": "2.8.8",
+    "react-test-renderer": "19.2.0",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "bobuttonsProvenance": {
+    "package": "bobuttons",
+    "version": "0.1.0",
+    "sourceCommit": "de3fe609ea34d5f7e0aab51b0a1fc8f81e89de98",
+    "sourceRepo": "Bobuttons",
+    "sourceBranch": "main",
+    "packedDate": "2026-10-27",
+    "tarballPath": "vendor/bobuttons-0.1.0.tgz",
+    "tarballBytes": 370432,
+    "integrity": "sha512-GHeM1mksuFt1H4r4L/sfHBMVP+gsB8LQz2eUlrUHEZh8Sm5PgvGfBmKAM5g2dkgJE6VaIFdByejoQBvCo9RYFA==",
+    "private": true
+  }
+}

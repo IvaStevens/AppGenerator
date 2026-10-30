@@ -178,13 +178,14 @@ same command is safe.
 npm test
 ```
 
-Runs the suite offline: no network, no real install. Two opt-in end-to-end
-tests (set `APPGEN_E2E=1`) generate real apps and exercise them. Each one
-fails, rather than skips, if its prerequisites are missing:
+Runs the suite offline: no network, no real install. Three opt-in
+end-to-end tests (set `APPGEN_E2E=1`) generate real apps and exercise
+them. Each one fails, rather than skips, if its prerequisites are missing:
 
 ```
 npm run test:e2e            # Electron: needs a display (or xvfb-run)
 npm run test:e2e:android    # Android: needs a JDK and the Android SDK
+npm run test:e2e:bobuttons  # Android (bobuttons target): needs a JDK and the Android SDK
 ```
 
 Each template pins exact dependency versions and commits a

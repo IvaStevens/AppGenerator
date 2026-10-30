@@ -38,14 +38,6 @@ peer-dependency warning for bobuttons.
 - react-native: `0.83.10`
 - react: `19.2.0`
 
-## react-native-svg
-
-`react-native-svg` is pinned at an exact version, `15.16.0`, present in the
-committed lockfile. It is compatible with react-native 0.83.10: its
-declared peers (`react: *`, `react-native: *`) are unconstrained, and
-`npm ci` installs it cleanly alongside this template's pinned
-react-native/react versions.
-
 ## Never install `@tamagui/*` in this app
 
 bobuttons bundles its own copy of Tamagui inside its built files; this
@@ -60,20 +52,12 @@ its own configuration. Render `<BobuttonsProvider>` alone at the root (see
 
 ## Icons
 
-The icons in `components/icons/` (`Activity`, `Heart`, `Home`, `Moon`,
-`Settings`, `Star`, `Sun`) are committed maintainer artefacts, not
-generated at app-generation time. Each was produced once with:
-
-```
-npx @tamagui/cli icons add <PascalCaseLucideName> --outDir components/icons
-```
-
-using the PascalCase Lucide icon name, with the generated `themed()`
-wrapper removed afterwards so the component takes a plain
-`{ size?: number | string; color?: string }` prop shape and renders with
-`react-native-svg` directly, importing nothing from `@tamagui/*`. This app
-never runs the icon generator itself and never installs any `@tamagui/*`
-package.
+This app includes no icons. bobuttons ships none, so it uses only the bobuttons
+components that need no icon (no `Icon`, `TabBar` or `TessellatedBackground`,
+and no icon cells in `SquareGrid`). When you want icons, add components of the
+shape `{ size?: number | string; color?: string }` (for example rendered with
+`react-native-svg`) and pass them to those components as their `source`/`icon`.
+Do not add `@tamagui/*` packages to generate them; see the section above.
 
 ## Jest
 

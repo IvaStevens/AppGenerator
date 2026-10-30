@@ -12,8 +12,7 @@
     "bobuttons": "file:vendor/bobuttons-0.1.0.tgz",
     "react": "19.2.0",
     "react-native": "0.83.10",
-    "react-native-safe-area-context": "5.10.1",
-    "react-native-svg": "15.16.0"
+    "react-native-safe-area-context": "5.10.1"
   },
   "devDependencies": {
     "@babel/core": "7.29.7",

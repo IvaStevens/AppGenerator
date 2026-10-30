@@ -7,12 +7,15 @@
  * second provider/config is exactly how the "can't find Tamagui
  * configuration" crash happens even with a single Tamagui copy installed.
  *
+ * No icons are used: bobuttons ships none, so this screen sticks to the
+ * components that need no icon source.
+ *
  * @format
  */
 
 import * as React from 'react';
 import { useState } from 'react';
-import { StatusBar, StyleSheet, View } from 'react-native';
+import { StatusBar } from 'react-native';
 import {
   SafeAreaProvider,
   useSafeAreaInsets,
@@ -20,24 +23,20 @@ import {
 import {
   AppHeader,
   AppShell,
+  Badge,
   BobuttonsProvider,
   Button,
-  Icon,
+  Checkbox,
+  Radio,
+  RadioGroup,
   SquareGrid,
-  TabBar,
-  TessellatedBackground,
+  Tabs,
+  TextInput,
   ViewBody,
+  ViewPane,
+  ViewToolbar,
 } from 'bobuttons';
 import { name as appName } from './app.json';
-import {
-  Activity,
-  Heart,
-  Home,
-  Moon,
-  Settings,
-  Star,
-  Sun,
-} from './components/icons';
 
 type TabId = 'home' | 'activity' | 'settings';
 
@@ -55,56 +54,68 @@ function App() {
 function AppContent() {
   const insets = useSafeAreaInsets();
   const [tab, setTab] = useState<TabId>('home');
+  const [text, setText] = useState('');
+  const [checked, setChecked] = useState(true);
+  const [choice, setChoice] = useState<'a' | 'b'>('a');
+  const [taps, setTaps] = useState(0);
 
   return (
-    <View style={styles.container}>
-      <TessellatedBackground
-        icons={[
-          { source: Heart, size: 28 },
-          { source: Activity, size: 20 },
-          { source: Star, size: 16 },
-          { source: Sun, size: 24 },
-          { source: Moon, size: 18 },
-        ]}
-      >
-        <AppShell
-          insets={insets}
-          header={<AppHeader title={appName} />}
-          sidebar={
-            <TabBar
-              tabs={[
-                { id: 'home', label: 'Home', icon: Home },
-                { id: 'activity', label: 'Activity', icon: Activity },
-                { id: 'settings', label: 'Settings', icon: Settings },
-              ]}
-              current={tab}
-              onChange={setTab}
+    <AppShell
+      insets={insets}
+      header={<AppHeader title={appName} />}
+      sidebar={
+        <Tabs
+          tabs={[
+            { id: 'home', label: 'Home' },
+            { id: 'activity', label: 'Activity' },
+            { id: 'settings', label: 'Settings' },
+          ]}
+          current={tab}
+          onChange={setTab}
+        />
+      }
+    >
+      <ViewPane>
+        <ViewToolbar
+          title={tab}
+          actions={<Badge label={`${taps} taps`} tone="accent" />}
+        />
+        <ViewBody>
+          <Button
+            label="Hello from bobuttons"
+            onPress={() => setTaps(taps + 1)}
+          />
+          <TextInput
+            value={text}
+            onChange={setText}
+            placeholder="Type here"
+          />
+          <Checkbox label="Checkbox" checked={checked} onChange={setChecked} />
+          <RadioGroup label="Radio group">
+            <Radio
+              label="Option A"
+              checked={choice === 'a'}
+              onSelect={() => setChoice('a')}
             />
-          }
-        >
-          <ViewBody>
-            <SquareGrid
-              columns={3}
-              rows={1}
-              cells={[
-                { icon: Home, label: 'Home' },
-                { icon: Activity, label: 'Activity' },
-                { icon: Settings, label: 'Settings' },
-              ]}
+            <Radio
+              label="Option B"
+              checked={choice === 'b'}
+              onSelect={() => setChoice('b')}
             />
-            <Icon source={Settings} size={20} label="Settings" />
-            <Button label="Hello from bobuttons" onPress={() => {}} />
-          </ViewBody>
-        </AppShell>
-      </TessellatedBackground>
-    </View>
+          </RadioGroup>
+          <SquareGrid
+            columns={3}
+            rows={1}
+            cells={[
+              { color: '$primary', text: 'A' },
+              { color: '$secondary', text: 'B' },
+              { color: '$accent', text: 'C' },
+            ]}
+          />
+        </ViewBody>
+      </ViewPane>
+    </AppShell>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-});
 
 export default App;

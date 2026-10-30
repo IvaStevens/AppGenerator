@@ -31,14 +31,6 @@ test("react-native-bobuttons template: key files exist", () => {
     "_eslintrc.js",
     "_prettierrc.js",
     "_watchmanconfig",
-    "components/icons/index.ts",
-    "components/icons/Activity.tsx",
-    "components/icons/Heart.tsx",
-    "components/icons/Home.tsx",
-    "components/icons/Moon.tsx",
-    "components/icons/Settings.tsx",
-    "components/icons/Star.tsx",
-    "components/icons/Sun.tsx",
   ];
 
   for (const relPath of expected) {

@@ -93,6 +93,78 @@ test("generating two apps in one session: no cross-references, no escaping symli
   assert.equal(statusAfter, statusBefore);
 });
 
+test("generating two react-native-bobuttons apps in one session: no cross-references, each owns its own vendored tarball, no escaping symlinks, repo untouched (APPGENERATOR-2 pr3)", (t) => {
+  const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "appgen-independence-bobuttons-"));
+  t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+
+  const statusBefore = execSync("git status --porcelain", { cwd: REPO_ROOT, encoding: "utf8" });
+
+  const env = { ...process.env, APPGEN_NPM_BIN: FAKE_NPM, FAKE_NPM_MODE: "success" };
+
+  const r1 = spawnSync(
+    process.execPath,
+    [BIN, "bb-app-alpha", "--target", "react-native-bobuttons"],
+    { cwd, env, encoding: "utf8" },
+  );
+  assert.equal(r1.status, 0, r1.stderr);
+  const r2 = spawnSync(
+    process.execPath,
+    [BIN, "bb-app-beta", "--target", "react-native-bobuttons"],
+    { cwd, env, encoding: "utf8" },
+  );
+  assert.equal(r2.status, 0, r2.stderr);
+
+  const appAlpha = path.join(cwd, "bb-app-alpha");
+  const appBeta = path.join(cwd, "bb-app-beta");
+
+  // Each app owns its own copy of the vendored tarball - no sharing, no
+  // symlink back to the generator or to the other app.
+  for (const app of [appAlpha, appBeta]) {
+    const tarball = path.join(app, "vendor", "bobuttons-0.1.0.tgz");
+    assert.ok(fs.existsSync(tarball));
+    assert.ok(!fs.lstatSync(tarball).isSymbolicLink());
+  }
+
+  // Neither app's text files mention the other's name (the tree also
+  // contains a jar, a keystore and PNGs that are not valid utf8).
+  const TEXT_FILE_RE = /\.(json|js|jsx|ts|tsx|md|gradle|properties|xml|pro|txt)$/;
+  function isLikelyTextFile(f) {
+    return TEXT_FILE_RE.test(f) || path.basename(f) === "gradlew" || path.basename(f).startsWith(".");
+  }
+  for (const f of listAllFiles(appAlpha)) {
+    if (f.includes(`${path.sep}node_modules${path.sep}`)) continue;
+    if (!isLikelyTextFile(f)) continue;
+    const content = fs.readFileSync(f, "utf8");
+    assert.ok(!content.includes("bb-app-beta"), `${f} mentions bb-app-beta`);
+  }
+  for (const f of listAllFiles(appBeta)) {
+    if (f.includes(`${path.sep}node_modules${path.sep}`)) continue;
+    if (!isLikelyTextFile(f)) continue;
+    const content = fs.readFileSync(f, "utf8");
+    assert.ok(!content.includes("bb-app-alpha"), `${f} mentions bb-app-alpha`);
+  }
+
+  // No symlink in either app escapes that app's own directory.
+  for (const [app, root] of [["alpha", appAlpha], ["beta", appBeta]]) {
+    for (const link of findSymlinks(root)) {
+      const resolved = fs.realpathSync(link);
+      const rel = path.relative(root, resolved);
+      assert.ok(
+        !rel.startsWith("..") && !path.isAbsolute(rel),
+        `symlink ${link} (app ${app}) escapes to ${resolved}`,
+      );
+    }
+  }
+
+  // Each app owns its own node_modules.
+  assert.ok(!fs.lstatSync(path.join(appAlpha, "node_modules")).isSymbolicLink());
+  assert.ok(!fs.lstatSync(path.join(appBeta, "node_modules")).isSymbolicLink());
+
+  // Generating into os.tmpdir() must never touch the AppGenerator repo.
+  const statusAfter = execSync("git status --porcelain", { cwd: REPO_ROOT, encoding: "utf8" });
+  assert.equal(statusAfter, statusBefore);
+});
+
 test("generating two react-native-android apps in one session: no cross-references, no escaping symlinks, repo untouched", (t) => {
   const cwd = fs.mkdtempSync(path.join(os.tmpdir(), "appgen-independence-rn-"));
   t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));

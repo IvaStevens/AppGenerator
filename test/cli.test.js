@@ -250,3 +250,44 @@ test("--help lists both target ids", (t) => {
   assert.ok(result.stdout.includes("electron-gluestack"));
   assert.ok(result.stdout.includes("react-native-android"));
 });
+
+// --- APPGENERATOR-2 pr3: react-native-bobuttons target registration ------
+
+test("--target react-native-bobuttons --no-install produces the vendored tarball and a working android/ Gradle project", (t) => {
+  const cwd = mkTmp();
+  t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+
+  const result = runCli(["bbapp", "--target", "react-native-bobuttons", "--no-install"], {
+    cwd,
+    env: {},
+  });
+
+  assert.equal(result.status, 0, result.stderr);
+  const target = path.join(cwd, "bbapp");
+  assert.ok(fs.existsSync(path.join(target, "vendor", "bobuttons-0.1.0.tgz")));
+  assert.ok(fs.existsSync(path.join(target, "android", "settings.gradle")));
+  assert.ok(!fs.existsSync(path.join(target, "node_modules")));
+});
+
+test("--help lists all three target ids, including react-native-bobuttons", (t) => {
+  const cwd = mkTmp();
+  t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+
+  const result = runCli(["--help"], { cwd, env: {} });
+
+  assert.equal(result.status, 0);
+  assert.ok(result.stdout.includes("electron-gluestack"));
+  assert.ok(result.stdout.includes("react-native-android"));
+  assert.ok(result.stdout.includes("react-native-bobuttons"));
+});
+
+test("--target bogus lists all three valid ids, including react-native-bobuttons", (t) => {
+  const cwd = mkTmp();
+  t.after(() => fs.rmSync(cwd, { recursive: true, force: true }));
+
+  const result = runCli(["app", "--target", "bogus"], { cwd, env: {} });
+
+  assert.equal(result.status, 2);
+  assert.ok(result.stderr.includes("react-native-bobuttons"));
+  assert.deepEqual(fs.readdirSync(cwd), []);
+});

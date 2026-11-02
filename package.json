@@ -14,7 +14,8 @@
   "scripts": {
     "test": "node --test \"test/**/*.test.js\"",
     "test:e2e": "APPGEN_E2E=1 node --test test/e2e/full-generate.test.js",
-    "test:e2e:android": "APPGEN_E2E=1 node --test test/e2e/android-build.test.js"
+    "test:e2e:android": "APPGEN_E2E=1 node --test test/e2e/android-build.test.js",
+    "test:e2e:bobuttons": "APPGEN_E2E=1 node --test test/e2e/bobuttons-android-build.test.js"
   },
   "dependencies": {}
 }
